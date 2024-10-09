@@ -308,151 +308,88 @@ async def receive_meta_webhook(request: Request, db: Session = Depends(database.
                 value = change["value"]
 
                 # Handle messages (replies)
-#                 if "statuses" in value:
-#                     for status in value["statuses"]:
-#                         # Check if the necessary keys exist
-#                         if "recipient_id" not in status or "id" not in status or "status" not in status or "timestamp" not in status:
-#                             raise HTTPException(status_code=400, detail="Missing keys in statuses")
+                if "statuses" in value:
+                    for status in value["statuses"]:
+                        # Check if the necessary keys exist
+                        if "recipient_id" not in status or "id" not in status or "status" not in status or "timestamp" not in status:
+                            raise HTTPException(status_code=400, detail="Missing keys in statuses")
 
                         
-#                         message_status = status["status"]
-#                         wamid=status['id']
+                        message_status = status["status"]
+                        wamid=status['id']
 
-#                         message_read=False
-#                         message_delivered=False
-#                         message_sent=False
+                        message_read=False
+                        message_delivered=False
+                        message_sent=False
 
                         
-#                         if(message_status=="read"):
-#                             message_read=True
-#                             message_delivered=True
-#                             message_sent=True
+                        if(message_status=="read"):
+                            message_read=True
+                            message_delivered=True
+                            message_sent=True
                             
                         
-#                         if(message_status=="delivered"):
-#                             message_read=False
-#                             message_delivered=True
-#                             message_sent=True
-                            
-
-
-#                         if(message_status=="sent"):
-#                             message_read=False
-#                             message_delivered=False
-#                             message_sent=True
+                        if(message_status=="delivered"):
+                            message_read=False
+                            message_delivered=True
+                            message_sent=True
                             
 
 
+                        if(message_status=="sent"):
+                            message_read=False
+                            message_delivered=False
+                            message_sent=True
+                            
 
-#                         broadcast_report = (
-#                                 db.query(Broadcast.BroadcastAnalysis)
-#                                 .filter( Broadcast.BroadcastAnalysis.message_id==wamid)
-#                                 .first()
-#                             )
-                        
-#                         if not broadcast_report:
-#                                 raise HTTPException(status_code=404,detail="Broadcast not found")
 
-#                         if wamid:
-#                                 broadcast_report.read=message_read
-#                                 broadcast_report.delivered=message_delivered
-#                                 broadcast_report.sent=message_sent
-#                                 broadcast_report.status=message_status
 
-#                         db.add(broadcast_report)
-#                         db.commit()
-#                         db.refresh(broadcast_report) 
-                
-#                 elif "messages" in value:
-#                     for message in value["messages"]:
-
-#                         message_reply=True
-#                         message_status='replied'
-                         
-#                         wamid=message['context']['id']
-#                         broadcast_report = (
-#                                 db.query(Broadcast.BroadcastAnalysis)
-#                                 .filter( Broadcast.BroadcastAnalysis.message_id==wamid)
-#                                 .first()
-#                             )
-                        
-#                         if not broadcast_report:
-#                                 raise HTTPException(status_code=404,detail="Broadcast not found")
-
-#                         if wamid:
-#                                 broadcast_report.replied=message_sent=message_reply
-#                                 broadcast_report.status=message_status
-
-#                         db.add(broadcast_report)
-#                         db.commit()
-#                         db.refresh(broadcast_report) 
-
-                # Handle incoming messages
-                if "messages" in value:
-                    for message in value["messages"]:
-                        wa_id = message['from']
-                        phone_number_id = value['metadata']['phone_number_id']
-                        message_id = message['id']
-                        message_content = message['text']['body']
-                        timestamp = int(message['timestamp'])
-                        message_type = message['type']
-                        context_message_id = message.get('context', {}).get('id')
-                        
-                        # Convert UTC timestamp to IST
-                        utc_time = datetime.utcfromtimestamp(timestamp)
-                        ist = pytz.timezone('Asia/Kolkata')
-                        ist_time = utc_time.replace(tzinfo=pytz.utc).astimezone(ist)
-
-                        # Clear the First_Conversation table if it contains expired entries
-                        expired_entries = db.query(First_Conversation).filter(
-                            First_Conversation.active == True,
-                            First_Conversation.first_chat_time <= datetime.utcnow() - timedelta(minutes=15)
-                        ).all()
-                        for entry in expired_entries:
-                            entry.active = False
-                            db.commit()
-
-                        # Check if any active conversation exists
-                        active_conversation = db.query(First_Conversation).filter(
-                            First_Conversation.sender_wa_id == wa_id,
-                            First_Conversation.receiver_wa_id == phone_number_id,
-                            First_Conversation.active == True
-                        ).first()
-
-                        # If no active conversation exists, consider this the first message
-                        is_first_message = active_conversation is None
-
-                        # If this is the first message
-                        if is_first_message:
-                            # Clear the First_Conversation table
-                            db.query(First_Conversation).delete()
-                            db.commit()
-
-                            # Insert a new entry in First_Conversation table
-                            first_conversation = First_Conversation(
-                                business_account_id=value['metadata'].get('business_account_id', 'unknown'),
-                                message_id=message_id,
-                                message_content=message_content,
-                                sender_wa_id=wa_id,
-                                receiver_wa_id=phone_number_id,
-                                first_chat_time=datetime.utcnow(),
-                                active=True
+                        broadcast_report = (
+                                db.query(Broadcast.BroadcastAnalysis)
+                                .filter( Broadcast.BroadcastAnalysis.message_id==wamid)
+                                .first()
                             )
-                            db.add(first_conversation)
-                            db.commit()
+                        
+                        if not broadcast_report:
+                                raise HTTPException(status_code=404,detail="Broadcast not found")
 
-                        # Store the message in the Conversations table
-                        conversation = Conversation(
-                            wa_id=wa_id,
-                            message_id=message_id,
-                            phone_number_id=phone_number_id,
-                            message_content=message_content,
-                            timestamp=ist_time,
-                            context_message_id=context_message_id,
-                            message_type=message_type
-                        )
-                        db.add(conversation)
+                        if wamid:
+                                broadcast_report.read=message_read
+                                broadcast_report.delivered=message_delivered
+                                broadcast_report.sent=message_sent
+                                broadcast_report.status=message_status
+
+                        db.add(broadcast_report)
                         db.commit()
+                        db.refresh(broadcast_report) 
+                
+                elif "messages" in value:
+                    for message in value["messages"]:
+
+                        message_reply=True
+                        message_status='replied'
+                         
+                        wamid=message['context']['id']
+                        broadcast_report = (
+                                db.query(Broadcast.BroadcastAnalysis)
+                                .filter( Broadcast.BroadcastAnalysis.message_id==wamid)
+                                .first()
+                            )
+                        
+                        if not broadcast_report:
+                                raise HTTPException(status_code=404,detail="Broadcast not found")
+
+                        if wamid:
+                                broadcast_report.replied=message_sent=message_reply
+                                broadcast_report.status=message_status
+
+                        db.add(broadcast_report)
+                        db.commit()
+                        db.refresh(broadcast_report)
+                # Handle incoming messages and replies
+                if "messages" in value:
+                    await handle_incoming_messages(value, db)
+
 
         return {"message": "Webhook data received and processed successfully"}
 
@@ -462,6 +399,151 @@ async def receive_meta_webhook(request: Request, db: Session = Depends(database.
     except Exception as e:
         logging.error(f"Error processing webhook: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+async def handle_incoming_messages(value:dict, db: Session):
+# Handle incoming messages
+    for message in value["messages"]:
+        wa_id = message['from']
+        phone_number_id = value['metadata']['phone_number_id']
+        message_id = message['id']
+        message_content = message['text']['body']
+        timestamp = int(message['timestamp'])
+        message_type = message['type']
+        context_message_id = message.get('context', {}).get('id')
+
+        # Convert UTC timestamp to IST
+        utc_time = datetime.utcfromtimestamp(timestamp)
+        ist = pytz.timezone('Asia/Kolkata')
+        ist_time = utc_time.replace(tzinfo=pytz.utc).astimezone(ist)
+
+        # Handle expired entries and activate new conversation if required
+        expired_entries = db.query(First_Conversation).filter(
+            First_Conversation.active == True,
+            First_Conversation.first_chat_time <= datetime.utcnow() - timedelta(minutes=15)
+        ).all()
+        for entry in expired_entries:
+            entry.active = False
+            db.commit()
+
+        active_conversation = db.query(First_Conversation).filter(
+            First_Conversation.sender_wa_id == wa_id,
+            First_Conversation.receiver_wa_id == phone_number_id,
+            First_Conversation.active == True
+        ).first()
+
+        is_first_message = active_conversation is None
+
+        if is_first_message:
+            db.query(First_Conversation).delete()
+            db.commit()
+
+            first_conversation = First_Conversation(
+                business_account_id=value['metadata'].get('business_account_id', 'unknown'),
+                message_id=message_id,
+                message_content=message_content,
+                sender_wa_id=wa_id,
+                receiver_wa_id=phone_number_id,
+                first_chat_time=datetime.utcnow(),
+                active=True
+            )
+            db.add(first_conversation)
+            db.commit()
+
+        # Store the message in the Conversations table
+        conversation = Conversation(
+            wa_id=wa_id,
+            message_id=message_id,
+            phone_number_id=phone_number_id,
+            message_content=message_content,
+            timestamp=ist_time,
+            context_message_id=context_message_id,
+            message_type=message_type
+        )
+        db.add(conversation)
+        db.commit()
+
+    # for message in value["messages"]:
+    #                  wa_id = message['from']
+    #                     phone_number_id = value['metadata']['phone_number_id']
+    #                     message_id = message['id']
+    #                     message_content = message['text']['body']
+    #                     timestamp = int(message['timestamp'])
+    #                     message_type = message['type']
+
+    #                     # Safely get context_message_id if 'context' exists
+    #                     context_message_id = message.get('context', {},None).get('id', None)
+                        
+    #                     # Convert UTC timestamp to IST
+    #                     utc_time = datetime.utcfromtimestamp(timestamp)
+    #                     ist = pytz.timezone('Asia/Kolkata')
+    #                     ist_time = utc_time.replace(tzinfo=pytz.utc).astimezone(ist)
+
+    #                     # Clear the First_Conversation table if it contains expired entries
+    #                     expired_entries = db.query(First_Conversation).filter(
+    #                         First_Conversation.active == True,
+    #                         First_Conversation.first_chat_time <= datetime.utcnow() - timedelta(minutes=15)
+    #                     ).all()
+    #                     for entry in expired_entries:
+    #                         entry.active = False
+    #                         db.commit()
+
+    #                     # Check if any active conversation exists
+    #                     active_conversation = db.query(First_Conversation).filter(
+    #                         First_Conversation.sender_wa_id == wa_id,
+    #                         First_Conversation.receiver_wa_id ==  phone_number_id,
+    #                         First_Conversation.active == True
+    #                     ).first()
+
+    #                     # If no active conversation exists, consider this the first message
+    #                     is_first_message = active_conversation is None
+                        
+    #                     # Insert the message into the Conversation table
+    #                     conversation = Conversation(
+    #         wa_id=wa_id,
+    #         message_id=message_id,
+    #         phone_number_id=phone_number_id,
+    #         message_content=message_content,
+    #         timestamp=ist_time,
+    #         context_message_id=context_message_id,
+    #         message_type=message_type
+    #     )
+    #                     db.add(conversation)
+    #                     db.commit()
+
+
+    #                     # If this is the first message, store it in First_Conversation as well
+
+    #                     if is_first_message:
+    #                         # Clear the First_Conversation table
+    #                         db.query(First_Conversation).delete()
+    #                         db.commit()
+
+    #                         # Insert a new entry in First_Conversation table
+    #                         first_conversation = First_Conversation(
+    #                             business_account_id=value['metadata'].get('business_account_id', 'unknown'),
+    #                             message_id=message_id,
+    #                             message_content=message_content,
+    #                             sender_wa_id=wa_id,
+    #                             receiver_wa_id=phone_number_id,
+    #                             first_chat_time=datetime.utcnow(),
+    #                             active=True
+    #                         )
+    #                         db.add(first_conversation)
+    #                         db.commit()
+
+    #                     # # Store the message in the Conversations table
+    #                     # conversation = Conversation(
+    #                     #     wa_id=wa_id,
+    #                     #     message_id=message_id,
+    #                     #     phone_number_id=phone_number_id,
+    #                     #     message_content=message_content,
+    #                     #     timestamp=ist_time,
+    #                     #     context_message_id=context_message_id,
+    #                     #     message_type=message_type
+    #                     # )
+    #                     # db.add(conversation)
+    #                     # db.commit()
+
 
 
 
