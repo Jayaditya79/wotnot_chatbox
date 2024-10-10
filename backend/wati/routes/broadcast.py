@@ -1,4 +1,5 @@
 from fastapi import APIRouter,Depends,HTTPException, File, UploadFile,Request
+from fastapi import FastAPI
 from ..models import Broadcast,Contacts,ChatBox,User
 from ..models.User import User
 from ..models.ChatBox import First_Conversation
@@ -25,11 +26,14 @@ from starlette.responses import PlainTextResponse
 from ..oauth2 import get_current_user
 from ..crud.template import send_template_to_whatsapp# Replace with your actual WhatsApp Business API endpoint and token
 import logging
+from apscheduler.schedulers.background import BackgroundScheduler
+
 
 # Replace with your actual WhatsApp Business API endpoint and token
 
 
 router=APIRouter( tags=['Broadcast'])
+app = FastAPI()
 
 WEBHOOK_VERIFY_TOKEN = "12345"  # Replace with your verification token
 
@@ -45,241 +49,6 @@ async def verify_webhook(request: Request):
     
     else:
         raise HTTPException(status_code=403, detail="Verification token mismatch")
-    
-# Webhook event listener to receive message status updates
-
-
-# @router.post("/meta-webhook")
-# # async def receive_meta_webhook(request: Request, db: Session = Depends(database.get_db)):
-#     try:
-#         # Parse the incoming webhook request
-#         body = await request.json()
-#         print(body)
-
-#         # Ensure 'entry' exists in the body
-#         if "entry" not in body:
-#             raise HTTPException(status_code=400, detail="Invalid webhook format")
-
-#         # Process each entry
-#         for event in body["entry"]:
-#             if "changes" not in event:
-#                 raise HTTPException(status_code=400, detail="Missing 'changes' key in entry")
-            
-#             # Iterate through each change
-#             for change in event["changes"]:
-#                 if "value" not in change:
-#                     raise HTTPException(status_code=400, detail="Missing 'value' key in changes")
-
-#                 value = change["value"]
-
-#                 # Handle messages (replies)
-#                 if "statuses" in value:
-#                     for status in value["statuses"]:
-#                         # Check if the necessary keys exist
-#                         if "recipient_id" not in status or "id" not in status or "status" not in status or "timestamp" not in status:
-#                             raise HTTPException(status_code=400, detail="Missing keys in statuses")
-
-                        
-#                         message_status = status["status"]
-#                         wamid=status['id']
-
-#                         message_read=False
-#                         message_delivered=False
-#                         message_sent=False
-
-                        
-#                         if(message_status=="read"):
-#                             message_read=True
-#                             message_delivered=True
-#                             message_sent=True
-                            
-                        
-#                         if(message_status=="delivered"):
-#                             message_read=False
-#                             message_delivered=True
-#                             message_sent=True
-                            
-
-
-#                         if(message_status=="sent"):
-#                             message_read=False
-#                             message_delivered=False
-#                             message_sent=True
-                            
-
-
-
-#                         broadcast_report = (
-#                                 db.query(Broadcast.BroadcastAnalysis)
-#                                 .filter( Broadcast.BroadcastAnalysis.message_id==wamid)
-#                                 .first()
-#                             )
-                        
-#                         if not broadcast_report:
-#                                 raise HTTPException(status_code=404,detail="Broadcast not found")
-
-#                         if wamid:
-#                                 broadcast_report.read=message_read
-#                                 broadcast_report.delivered=message_delivered
-#                                 broadcast_report.sent=message_sent
-#                                 broadcast_report.status=message_status
-
-#                         db.add(broadcast_report)
-#                         db.commit()
-#                         db.refresh(broadcast_report) 
-                
-#                 elif "messages" in value:
-#                     for message in value["messages"]:
-
-#                         message_reply=True
-#                         message_status='replied'
-                         
-#                         wamid=message['context']['id']
-#                         broadcast_report = (
-#                                 db.query(Broadcast.BroadcastAnalysis)
-#                                 .filter( Broadcast.BroadcastAnalysis.message_id==wamid)
-#                                 .first()
-#                             )
-                        
-#                         if not broadcast_report:
-#                                 raise HTTPException(status_code=404,detail="Broadcast not found")
-
-#                         if wamid:
-#                                 broadcast_report.replied=message_sent=message_reply
-#                                 broadcast_report.status=message_status
-
-#                         db.add(broadcast_report)
-#                         db.commit()
-#                         db.refresh(broadcast_report) 
-
-#             # Handle replies (contextual messages)
-#                 if "messages" in value:
-#                     for message in value["messages"]:
-#                         if 'context' not in message:
-#                             continue  # Skip if there's no context (no reply)
-
-#                         # Extract context information
-#                         context = message['context']
-#                         if 'id' not in context:
-#                             continue  # Skip if there's no context ID
-
-#                         wamid = context['id']
-#                         broadcast_report = db.query(Broadcast.BroadcastAnalysis).filter(Broadcast.BroadcastAnalysis.message_id == wamid).first()
-
-#                         if not broadcast_report:
-#                             raise HTTPException(status_code=404, detail="Broadcast not found")
-
-#                         broadcast_report.replied = True
-#                         broadcast_report.status = 'replied'
-
-#                         db.commit()
-#                         db.refresh(broadcast_report)
-
-#                         # Extract relevant details for the reply message
-#                         wa_id = message['from']
-#                         message_id = message['id']
-#                         phone_number_id = value['metadata']['phone_number_id']
-#                         message_content = message['text']['body']
-#                         timestamp = int(message['timestamp'])
-#                         message_type = message['type']
-#                         context_message_id = context['id']
-
-#                         # Convert timestamp to a datetime object
-#                         timestamp_dt = datetime.utcfromtimestamp(timestamp)
-
-#                         # Store the incoming reply message in the database
-#                         conversation = ChatBox.Conversation(
-#                             wa_id=wa_id,
-#                             message_id=message_id,
-#                             phone_number_id=phone_number_id,
-#                             message_content=message_content,
-#                             timestamp=timestamp_dt,
-#                             context_message_id=context_message_id,
-#                             message_type=message_type
-#                         )
-
-#                         logging.info('This is saving reply message')
-#                         db.add(conversation)
-#                         db.commit()
-#                         db.refresh(conversation)
-                         
-#             # Extracting the relevant part of the JSON
-#                 entry = body.get("entry", [])
-#                 if entry:
-#                     changes = entry[0].get("changes", [])
-#                     if changes:
-#                         value = changes[0].get("value", {})
-                        
-#                         # Check for the existence of contacts and messages
-#                         if "contacts" in value and "messages" in value:
-#                             contacts = value["contacts"]
-#                             messages = value["messages"]
-
-#                             if contacts and messages:  # Ensure they are not empty lists
-#                                 contact = contacts[0]
-#                                 message = messages[0]
-                                
-#                             #    Create a WebhookData object
-#                                 webhook_data = chatbox.WebhookData(
-#                                     messaging_product=value['messaging_product'],
-#                                     phone_number_id=value['metadata']['phone_number_id'],
-#                                     wa_id=contact['wa_id'],
-#                                     message_id=message['id'],
-#                                     text=message['text']['body'],
-#                                     timestamp=int(message['timestamp']),
-#                                     context_message_id=message['context']['id'] if 'context' in message else None,
-#                                     message_type=message['type']
-#                                 )
-
-#                                 # Convert timestamp to a datetime object
-#                                 timestamp = webhook_data.timestamp
-#                                 timestamp_dt = datetime.utcfromtimestamp(timestamp) if timestamp else None
-
-#                                 # Store the incoming message in the database
-#                                 conversation = ChatBox.Conversation(
-#                                     wa_id=webhook_data.wa_id,
-#                                     message_id=webhook_data.message_id,
-#                                     phone_number_id=webhook_data.phone_number_id,
-#                                     message_content=webhook_data.text,
-#                                     timestamp=timestamp_dt,
-#                                     context_message_id=webhook_data.context_message_id,
-#                                     message_type=webhook_data.message_type
-#                                 )
-
-#                                 logging.info('This is saving')
-#                                 db.add(conversation)
-#                                 db.commit()
-#                                 db.refresh(conversation)
-#                             else:
-#                                 logging.warning("Contacts or messages are empty.")
-#                         else:
-#                             logging.warning("Contacts or messages fields are missing.")
-#                     else:
-#                         logging.warning("Changes field is missing or empty.")
-#                 else:
-#                     logging.warning("Entry field is missing or empty.")
-
-#         return {"message": "Webhook data received and stored successfully"}
-
-
-      
-
-
-#     except KeyError as e:
-#         logging.error(f"Missing key in webhook payload: {str(e)}")
-#         raise HTTPException(status_code=400, detail=f"Missing key: {str(e)}")
-#     except Exception as e:
-#         logging.error(f"Error processing webhook: {str(e)}")
-#         raise HTTPException(status_code=500, detail="Internal Server Error")
-
-
-
-
-
-
-
-
-
 
 # ######### WORKING ENDPOINT WITH BROADCAST REPORT ##########
 
@@ -363,29 +132,30 @@ async def receive_meta_webhook(request: Request, db: Session = Depends(database.
                         db.commit()
                         db.refresh(broadcast_report) 
                 
-                elif "messages" in value:
-                    for message in value["messages"]:
+                # if "messages" in value:
+                #     for message in value["messages"]:
 
-                        message_reply=True
-                        message_status='replied'
+                #         message_reply=True
+                #         message_status='replied'
+                    
                          
-                        wamid=message['context']['id']
-                        broadcast_report = (
-                                db.query(Broadcast.BroadcastAnalysis)
-                                .filter( Broadcast.BroadcastAnalysis.message_id==wamid)
-                                .first()
-                            )
+                #         wamid=message['context']['id']
+                #         broadcast_report = (
+                #                 db.query(Broadcast.BroadcastAnalysis)
+                #                 .filter( Broadcast.BroadcastAnalysis.message_id==wamid)
+                #                 .first()
+                #             )
                         
-                        if not broadcast_report:
-                                raise HTTPException(status_code=404,detail="Broadcast not found")
+                #         if not broadcast_report:
+                #                 raise HTTPException(status_code=404,detail="Broadcast not found")
 
-                        if wamid:
-                                broadcast_report.replied=message_sent=message_reply
-                                broadcast_report.status=message_status
+                #         if wamid:
+                #                 broadcast_report.replied=message_sent=message_reply
+                #                 broadcast_report.status=message_status
 
-                        db.add(broadcast_report)
-                        db.commit()
-                        db.refresh(broadcast_report)
+                        # db.add(broadcast_report)
+                        # db.commit()
+                        # db.refresh(broadcast_report)
                 # Handle incoming messages and replies
                 if "messages" in value:
                     await handle_incoming_messages(value, db)
@@ -399,6 +169,7 @@ async def receive_meta_webhook(request: Request, db: Session = Depends(database.
     except Exception as e:
         logging.error(f"Error processing webhook: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
 
 async def handle_incoming_messages(value:dict, db: Session):
 # Handle incoming messages
@@ -416,26 +187,27 @@ async def handle_incoming_messages(value:dict, db: Session):
         ist = pytz.timezone('Asia/Kolkata')
         ist_time = utc_time.replace(tzinfo=pytz.utc).astimezone(ist)
 
-        # Handle expired entries and activate new conversation if required
-        expired_entries = db.query(First_Conversation).filter(
-            First_Conversation.active == True,
-            First_Conversation.first_chat_time <= datetime.utcnow() - timedelta(minutes=15)
-        ).all()
-        for entry in expired_entries:
-            entry.active = False
-            db.commit()
-
+        
         active_conversation = db.query(First_Conversation).filter(
             First_Conversation.sender_wa_id == wa_id,
             First_Conversation.receiver_wa_id == phone_number_id,
             First_Conversation.active == True
         ).first()
 
+        # Determine if this is the first message in a new conversation
         is_first_message = active_conversation is None
 
         if is_first_message:
-            db.query(First_Conversation).delete()
+            # Clear previous expired conversations for this pair
+            db.query(First_Conversation).filter(
+                First_Conversation.sender_wa_id == wa_id,
+                First_Conversation.receiver_wa_id == phone_number_id
+            ).delete()
             db.commit()
+
+
+            # db.query(First_Conversation).delete()
+            # db.commit()
 
             first_conversation = First_Conversation(
                 business_account_id=value['metadata'].get('business_account_id', 'unknown'),
@@ -457,446 +229,11 @@ async def handle_incoming_messages(value:dict, db: Session):
             message_content=message_content,
             timestamp=ist_time,
             context_message_id=context_message_id,
-            message_type=message_type
+            message_type=message_type,
+            direction="Receive"
         )
         db.add(conversation)
         db.commit()
-
-    # for message in value["messages"]:
-    #                  wa_id = message['from']
-    #                     phone_number_id = value['metadata']['phone_number_id']
-    #                     message_id = message['id']
-    #                     message_content = message['text']['body']
-    #                     timestamp = int(message['timestamp'])
-    #                     message_type = message['type']
-
-    #                     # Safely get context_message_id if 'context' exists
-    #                     context_message_id = message.get('context', {},None).get('id', None)
-                        
-    #                     # Convert UTC timestamp to IST
-    #                     utc_time = datetime.utcfromtimestamp(timestamp)
-    #                     ist = pytz.timezone('Asia/Kolkata')
-    #                     ist_time = utc_time.replace(tzinfo=pytz.utc).astimezone(ist)
-
-    #                     # Clear the First_Conversation table if it contains expired entries
-    #                     expired_entries = db.query(First_Conversation).filter(
-    #                         First_Conversation.active == True,
-    #                         First_Conversation.first_chat_time <= datetime.utcnow() - timedelta(minutes=15)
-    #                     ).all()
-    #                     for entry in expired_entries:
-    #                         entry.active = False
-    #                         db.commit()
-
-    #                     # Check if any active conversation exists
-    #                     active_conversation = db.query(First_Conversation).filter(
-    #                         First_Conversation.sender_wa_id == wa_id,
-    #                         First_Conversation.receiver_wa_id ==  phone_number_id,
-    #                         First_Conversation.active == True
-    #                     ).first()
-
-    #                     # If no active conversation exists, consider this the first message
-    #                     is_first_message = active_conversation is None
-                        
-    #                     # Insert the message into the Conversation table
-    #                     conversation = Conversation(
-    #         wa_id=wa_id,
-    #         message_id=message_id,
-    #         phone_number_id=phone_number_id,
-    #         message_content=message_content,
-    #         timestamp=ist_time,
-    #         context_message_id=context_message_id,
-    #         message_type=message_type
-    #     )
-    #                     db.add(conversation)
-    #                     db.commit()
-
-
-    #                     # If this is the first message, store it in First_Conversation as well
-
-    #                     if is_first_message:
-    #                         # Clear the First_Conversation table
-    #                         db.query(First_Conversation).delete()
-    #                         db.commit()
-
-    #                         # Insert a new entry in First_Conversation table
-    #                         first_conversation = First_Conversation(
-    #                             business_account_id=value['metadata'].get('business_account_id', 'unknown'),
-    #                             message_id=message_id,
-    #                             message_content=message_content,
-    #                             sender_wa_id=wa_id,
-    #                             receiver_wa_id=phone_number_id,
-    #                             first_chat_time=datetime.utcnow(),
-    #                             active=True
-    #                         )
-    #                         db.add(first_conversation)
-    #                         db.commit()
-
-    #                     # # Store the message in the Conversations table
-    #                     # conversation = Conversation(
-    #                     #     wa_id=wa_id,
-    #                     #     message_id=message_id,
-    #                     #     phone_number_id=phone_number_id,
-    #                     #     message_content=message_content,
-    #                     #     timestamp=ist_time,
-    #                     #     context_message_id=context_message_id,
-    #                     #     message_type=message_type
-    #                     # )
-    #                     # db.add(conversation)
-    #                     # db.commit()
-
-
-
-
-
-# @router.post("/meta-webhook")
-# async def receive_meta_webhook(request: Request, db: Session = Depends(database.get_db)):
-#     try:
-#         # Parse the incoming webhook request
-#         body = await request.json()
-
-#         # Print the JSON body in a formatted way
-#         formatted_body = json.dumps(body, indent=4)
-#         print(formatted_body)
-
-
-#         # Ensure 'entry' exists in the body
-#         if "entry" not in body:
-#             raise HTTPException(status_code=400, detail="Invalid webhook format")
-
-#         # Process each entry
-#         for event in body["entry"]:
-#             if "changes" not in event:
-#                 raise HTTPException(status_code=400, detail="Missing 'changes' key in entry")
-
-#             # Iterate through each change
-#             for change in event["changes"]:
-#                 if "value" not in change:
-#                     raise HTTPException(status_code=400, detail="Missing 'value' key in changes")
-
-#                 value = change["value"]
-
-#                 # Handle message statuses (read, delivered, sent)
-#                 if "statuses" in value:
-#                     for status in value["statuses"]:
-#                         # Validate required keys in status
-#                         if not all(key in status for key in ["recipient_id", "id", "status", "timestamp"]):
-#                             raise HTTPException(status_code=400, detail="Missing keys in statuses")
-
-#                         wamid = status['id']
-#                         message_status = status["status"]
-#                         message_read = message_status == "read"
-#                         message_delivered = message_status in ["read", "delivered"]
-#                         message_sent = message_status in ["read", "delivered", "sent"]
-
-#                         broadcast_report = db.query(Broadcast.BroadcastAnalysis).filter(Broadcast.BroadcastAnalysis.message_id == wamid).first()
-
-#                         if not broadcast_report:
-#                             raise HTTPException(status_code=404, detail="Broadcast not found")
-
-#                         # Update the broadcast report
-#                         broadcast_report.read = message_read
-#                         broadcast_report.delivered = message_delivered
-#                         broadcast_report.sent = message_sent
-#                         broadcast_report.status = message_status
-
-#                         db.commit()
-#                         db.refresh(broadcast_report)
-
-#                 # Handle incoming messages
-#                 if "messages" in value:
-#                     for message in value["messages"]:
-#                         if 'context' not in message:
-#                             continue  # Skip if there's no context (no reply)
-
-#                         # Extract context information
-#                         context = message['context']
-#                         if 'id' not in context:
-#                             continue  # Skip if there's no context ID
-
-#                         wamid = context['id']
-#                         broadcast_report = db.query(Broadcast.BroadcastAnalysis).filter(Broadcast.BroadcastAnalysis.message_id == wamid).first()
-
-#                         if not broadcast_report:
-#                             raise HTTPException(status_code=404, detail="Broadcast not found")
-
-#                         broadcast_report.replied = True
-#                         broadcast_report.status = 'replied'
-
-#                         db.commit()
-#                         db.refresh(broadcast_report)
-
-#                         # Extract relevant details for the reply message
-#                         wa_id = message['from']
-#                         message_id = message['id']
-#                         phone_number_id = value['metadata']['phone_number_id']
-#                         message_content = message['text']['body']
-#                         timestamp = int(message['timestamp'])
-#                         message_type = message['type']
-#                         context_message_id = context['id']
-
-#                         # Convert timestamp to a datetime object
-#                         timestamp_dt = datetime.utcfromtimestamp(timestamp)
-
-#                         # Store the incoming reply message in the database
-#                         conversation = ChatBox.Conversation(
-#                             wa_id=wa_id,
-#                             message_id=message_id,
-#                             phone_number_id=phone_number_id,
-#                             message_content=message_content,
-#                             timestamp=timestamp_dt,
-#                             context_message_id=context_message_id,
-#                             message_type=message_type
-#                         )
-
-#                         logging.info('This is saving reply message')
-#                         db.add(conversation)
-#                         db.commit()
-#                         db.refresh(conversation)
-
-#                 # Handle cases where both messages and contacts are expected
-#                 if "contacts" in value and "messages" in value:
-#                     contacts = value["contacts"]
-#                     messages = value["messages"]
-
-#                     if contacts and messages:  # Ensure they are not empty lists
-#                         contact = contacts[0]
-#                         message = messages[0]
-
-#                         # Create a WebhookData object
-#                         webhook_data = chatbox.WebhookData(
-#                             messaging_product=value['messaging_product'],
-#                             phone_number_id=value['metadata']['phone_number_id'],
-#                             wa_id=contact['wa_id'],
-#                             message_id=message['id'],
-#                             text=message['text']['body'],
-#                             timestamp=int(message['timestamp']),
-#                             context_message_id=message['context']['id'] if 'context' in message else None,
-#                             message_type=message['type']
-#                         )
-
-#                         # Store the incoming message in the database
-#                         conversation = ChatBox.Conversation(
-#                             wa_id=webhook_data.wa_id,
-#                             message_id=webhook_data.message_id,
-#                             phone_number_id=webhook_data.phone_number_id,
-#                             message_content=webhook_data.text,
-#                             timestamp=datetime.utcfromtimestamp(webhook_data.timestamp),
-#                             context_message_id=webhook_data.context_message_id,
-#                             message_type=webhook_data.message_type
-#                         )
-
-#                         logging.info('This is saving')
-#                         db.add(conversation)
-#                         db.commit()
-#                         db.refresh(conversation)
-#                     else:
-#                         logging.warning("Contacts or messages are empty.")
-#                 else:
-#                     logging.warning("Contacts or messages fields are missing.")
-
-#         return {"message": "Webhook data received and processed successfully"}
-
-#     except KeyError as e:
-#         logging.error(f"Missing key in webhook payload: {str(e)}")
-#         raise HTTPException(status_code=400, detail=f"Missing key: {str(e)}")
-
-#     except Exception as e:
-#         logging.error(f"Error processing webhook: {str(e)}")
-#         raise HTTPException(status_code=500, detail="Internal Server Error")
-
-# async def receive_meta_webhook(request: Request, db: Session = Depends(database.get_db)):
-#     try:
-#         # Parse the incoming webhook request
-#         body = await request.json()
-#         print(body)
-
-#         # Ensure 'entry' exists in the body
-#         if "entry" not in body:
-#             raise HTTPException(status_code=400, detail="Invalid webhook format")
-
-#         # Process each entry
-#         for event in body["entry"]:
-#             if "changes" not in event:
-#                 raise HTTPException(status_code=400, detail="Missing 'changes' key in entry")
-
-#             # Iterate through each change
-#             for change in event["changes"]:
-#                 if "value" not in change:
-#                     raise HTTPException(status_code=400, detail="Missing 'value' key in changes")
-
-#                 value = change["value"]
-
-#                 # Handle message statuses (read, delivered, sent)
-#                 if "statuses" in value:
-#                     for status in value["statuses"]:
-#                         # Validate required keys in status
-#                         if not all(key in status for key in ["recipient_id", "id", "status", "timestamp"]):
-#                             raise HTTPException(status_code=400, detail="Missing keys in statuses")
-
-#                         wamid = status['id']
-#                         message_status = status["status"]
-#                         message_read = message_status == "read"
-#                         message_delivered = message_status in ["read", "delivered"]
-#                         message_sent = message_status in ["read", "delivered", "sent"]
-
-#                         broadcast_report = db.query(Broadcast.BroadcastAnalysis).filter(Broadcast.BroadcastAnalysis.message_id == wamid).first()
-
-#                         if not broadcast_report:
-#                             raise HTTPException(status_code=404, detail="Broadcast not found")
-
-#                         # Update the broadcast report
-#                         broadcast_report.read = message_read
-#                         broadcast_report.delivered = message_delivered
-#                         broadcast_report.sent = message_sent
-#                         broadcast_report.status = message_status
-
-#                         db.commit()
-#                         db.refresh(broadcast_report)
-
-#                 # Handle replies (contextual messages)
-#                 if "messages" in value:
-#                     for message in value["messages"]:
-#                         if 'context' not in message:
-#                             continue  # Skip if there's no context (no reply)
-
-#                         # Extract context information
-#                         context = message['context']
-#                         if 'id' not in context:
-#                             continue  # Skip if there's no context ID
-
-#                         wamid = context['id']
-#                         broadcast_report = db.query(Broadcast.BroadcastAnalysis).filter(Broadcast.BroadcastAnalysis.message_id == wamid).first()
-
-#                         if not broadcast_report:
-#                             raise HTTPException(status_code=404, detail="Broadcast not found")
-
-#                         broadcast_report.replied = True
-#                         broadcast_report.status = 'replied'
-
-#                         db.commit()
-#                         db.refresh(broadcast_report)
-
-#                         # Extract relevant details for the reply message
-#                         wa_id = message['from']
-#                         message_id = message['id']
-#                         phone_number_id = value['metadata']['phone_number_id']
-#                         message_content = message['text']['body']
-#                         timestamp = int(message['timestamp'])
-#                         message_type = message['type']
-#                         context_message_id = context['id']
-
-#                         # Convert timestamp to a datetime object
-#                         timestamp_dt = datetime.utcfromtimestamp(timestamp)
-
-#                         # Store the incoming reply message in the database
-#                         conversation = ChatBox.Conversation(
-#                             wa_id=wa_id,
-#                             message_id=message_id,
-#                             phone_number_id=phone_number_id,
-#                             message_content=message_content,
-#                             timestamp=timestamp_dt,
-#                             context_message_id=context_message_id,
-#                             message_type=message_type
-#                         )
-
-#                         logging.info('This is saving reply message')
-#                         db.add(conversation)
-#                         db.commit()
-#                         db.refresh(conversation)
-
-#                 # Extracting the relevant part of the JSON
-#                 entry = body.get("entry", [])
-#                 if entry:
-#                     changes = entry[0].get("changes", [])
-#                     if changes:
-#                         value = changes[0].get("value", {})
-                        
-#                         # Check for the existence of contacts and messages
-#                         if "contacts" in value and "messages" in value:
-#                             contacts = value["contacts"]
-#                             messages = value["messages"]
-
-#                             if contacts and messages:  # Ensure they are not empty lists
-#                                 contact = contacts[0]
-#                                 message = messages[0]
-
-#                                 # Create a WebhookData object
-#                                 webhook_data = chatbox.WebhookData(
-#                                     messaging_product=value['messaging_product'],
-#                                     phone_number_id=value['metadata']['phone_number_id'],
-#                                     wa_id=contact['wa_id'],
-#                                     message_id=message['id'],
-#                                     text=message['text']['body'],
-#                                     timestamp=int(message['timestamp']),
-#                                     context_message_id=message['context']['id'] if 'context' in message else None,
-#                                     message_type=message['type']
-#                                 )
-
-                                
-#                                 # Store the incoming message in the database
-#                                 conversation = ChatBox.Conversation(
-#                                     wa_id=webhook_data.wa_id,
-#                                     message_id=webhook_data.message_id,
-#                                     phone_number_id=webhook_data.phone_number_id,
-#                                     message_content=webhook_data.text,
-#                                     timestamp=datetime.utcfromtimestamp(webhook_data.timestamp),
-#                                     context_message_id=webhook_data.context_message_id,
-#                                     message_type=webhook_data.message_type
-#                                 )
-
-#                                 logging.info('This is saving')
-#                                 db.add(conversation)
-#                                 db.commit()
-#                                 db.refresh(conversation)
-#                             else:
-#                                 logging.warning("Contacts or messages are empty.")
-#                         else:
-#                             logging.warning("Contacts or messages fields are missing.")
-#                     else:
-#                         logging.warning("Changes field is missing or empty.")
-#                 else:
-#                     logging.warning("Entry field is missing or empty.")
-
-#         sender_id = body['entry'][0]['changes'][0]['value']['messages'][0]['from'] 
-#         # sender_id = body['entry'][0]['changes'][0]['value'].get('messages', [{}])[0].get('from', None) # WA ID of the sender
-#         receiver_id = body['entry'][0]['changes'][0]['value']['metadata']['display_phone_number']  # WA ID of the recipient
-#         business_account_id = body['entry'][0]['changes'][0]['value']['metadata']['phone_number_id']  # ID of the business account
-
-#         # Check if a conversation already exists between the sender and receiver
-#         conversation = db.query(ChatBox.First_Conversation).filter_by(
-#             business_account_id=business_account_id,
-#             sender_wa_id=sender_id,
-#             receiver_wa_id=receiver_id
-#         ).first()
-
-#         if not conversation:
-#             # Create a new conversation if it doesn't exist
-#             conversation = ChatBox.First_Conversation(business_account_id, sender_id, receiver_id)
-#             db.add(conversation)
-#             db.commit()
-#         else:
-#             # If the conversation exists, you can optionally handle it here (e.g., check if it's active)
-#             if not conversation.active:
-#                 # return {"error": "Chat has expired."}
-#                 db.delete(conversation)  # Delete the inactive conversation
-#                 db.commit()
-            
-#                 # Create a new conversation with a new timestamp
-#                 new_conversation = ChatBox.First_Conversation(business_account_id=business_account_id, sender_wa_id=sender_id, receiver_wa_id=receiver_id)
-#                 new_conversation.first_chat_time = datetime.now()  # Set the new first chat time
-#                 db.add(new_conversation)
-#                 db.commit()
-#                 return {"message": "New conversation created as the previous one was inactive."}
-
-#         return {"message": "Webhook data received and stored successfully"}
-
-#     except KeyError as e:
-#         logging.error(f"Missing key in webhook payload: {str(e)}")
-#         raise HTTPException(status_code=400, detail=f"Missing key: {str(e)}")
-
-#     except Exception as e:
-#         logging.error(f"Error processing webhook: {str(e)}")
-#         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 
@@ -911,140 +248,8 @@ def get_conversation(wa_id: str, db: Session = Depends(database.get_db)):
     return conversations
 
 
-
-# Broadcast 2 routes
-
-# test
-
-# @router.post("/send-template-message/")
-# async def send_template_message(
-#     request: broadcast.input_broadcast, 
-#     get_current_user: user.newuser = Depends(get_current_user), 
-#     db: Session = Depends(database.get_db)
-# ):
-#     print(request)
-
-#     # Save broadcast details
-#     broadcastList = Broadcast.BroadcastList(
-#         user_id=get_current_user.id,
-#         name=request.name,
-#         template=request.template,
-#         contacts=request.recipients,
-#         type=request.type,
-#         success=0,
-#         failed=0,
-#         status="processing..."
-#     )
-#     db.add(broadcastList)
-#     db.commit()
-#     db.refresh(broadcastList)
-    
-#     saved_broadcast_id = broadcastList.id
-
-
-#     # Prepare API URL and headers
-#     API_url = f"https://graph.facebook.com/v20.0/{get_current_user.Phone_id}/messages"
-#     headers = {
-#         "Authorization": f"Bearer {get_current_user.PAccessToken}",
-#         "Content-Type": "application/json"
-#     }
-
-#     success_count = 0
-#     errors = []
-#     failed_count = 0
-
-#     for recipient in request.recipients:
-#         # Create the base payload
-#         data = {
-#             "messaging_product": "whatsapp",
-#             "to": recipient,
-#             "type": "template",
-#             "template": {
-#                 "name": request.template,
-#                 "language": {"code": "en_US"}
-#             }
-#         }
-
-#         # Check if the image URL is provided and add it to the payload
-#         if request.image_id:
-#             data["template"]["components"] = [
-#                 {
-#                     "type": "header",
-#                     "parameters": [
-#                         {
-#                             "type": "image",
-#                             "image": {
-#                                         "id": request.image_id
-#                         }
-#                         }
-#                     ]
-#                 }
-#             ]
-
-#         # Check if body parameters are provided and add them to the payload
-#         # if request.body_parameters:
-#         #     body_params = [{"type": "text", "text": param} for param in request.body_parameters]
-#         #     if "components" not in data["template"]:
-#         #         data["template"]["components"] = []
-#         #     data["template"]["components"].append({
-#         #         "type": "body",
-#         #         "parameters": body_params
-#         #     })
-
-#         # Send the request to the WhatsApp API
-#         response = requests.post(API_url, headers=headers, data=json.dumps(data))
-#         response_data = response.json()
-
-#         if response.status_code == 200:
-#             success_count += 1
-#             wamid = response_data['messages'][0]['id']
-#             phone_num = response_data['contacts'][0]["wa_id"]
-
-#             MessageIdLog = Broadcast.BroadcastAnalysis(
-#                 user_id=get_current_user.id,
-#                 broadcast_id=saved_broadcast_id,
-#                 message_id=wamid,
-#                 status="sent",
-#                 phone_no=phone_num,
-#             )
-#             db.add(MessageIdLog)
-#             db.commit()
-#             db.refresh(MessageIdLog)
-#         else:
-#             failed_count += 1
-#             errors.append({"recipient": recipient, "error": response_data})
-
-#             MessageIdLog = Broadcast.BroadcastAnalysis(
-#                 user_id=get_current_user.id,
-#                 broadcast_id=saved_broadcast_id,
-#                 status="failed",
-#                 phone_no=recipient,
-#             )
-#             db.add(MessageIdLog)
-#             db.commit()
-#             db.refresh(MessageIdLog)
-
-#     # Update broadcast status
-#     broadcast = db.query(Broadcast.BroadcastList).filter(Broadcast.BroadcastList.id == saved_broadcast_id).first()
-#     if not broadcast:
-#         raise HTTPException(status_code=404, detail="Broadcast not found")
-
-#     if saved_broadcast_id:
-#         broadcast.success = success_count
-#         broadcast.status = "Successful" if failed_count == 0 else "Partially Successful"
-#         broadcast.failed = failed_count
-#     db.add(broadcast)
-#     db.commit()
-#     db.refresh(broadcast)
-
-#     return {
-#         "status": "completed",
-#         "successful_messages": success_count,
-#         "errors": errors
-#     }
-
 @router.post("/send-text-message/")
-def send_message(payload: chatbox.MessagePayload):
+def send_message(payload: chatbox.MessagePayload,db: Session = Depends(database.get_db)):
     # Construct the URL for sending the message
     whatsapp_url = f"https://graph.facebook.com/v20.0/{payload.phone_number_id}/messages"
 
@@ -1072,12 +277,15 @@ def send_message(payload: chatbox.MessagePayload):
         print(response.json())
         raise HTTPException(status_code=response.status_code, detail=response.json())
 
-    return {"status": "Message sent", "response": response.json()}
+        # return {"status": "Message sent", "response": response.json()}
     # Parse the response JSON to get message details
     response_data = response.json()
+    
+
+    try:
 
     # Create a new WebhookData entry
-    new_message = WebhookDataModel(
+        new_message = chatbox.WebhookData(
         messaging_product="whatsapp",
         phone_number_id=payload.phone_number_id,
         wa_id=payload.wa_id,
@@ -1086,14 +294,38 @@ def send_message(payload: chatbox.MessagePayload):
         timestamp=int(response_data.get("timestamp", 0)),
         context_message_id=None,  # Assuming this is None for now
         message_type="text"
-    )
+        )
+        print(new_message)
 
     # Store the message in the database
-    db.add(new_message)
-    db.commit()
-    db.refresh(new_message)
+        db.add(new_message)
+    # Store the message in the Conversation table with direction as "sent"
+        conversation = Conversation(
+        wa_id=payload.wa_id,
+        message_id=response_data.get("messages")[0].get("id"),
+        phone_number_id=payload.phone_number_id,
+        message_content=payload.body,
+        timestamp=datetime.now(),
+        context_message_id=None,  # Set based on your needs
+        message_type="text",
+        direction="sent"  # Set direction to "sent"
+        )
+    
+        db.add(conversation)
+        db.commit()
+        db.refresh(new_message)
+        db.refresh(conversation)
+        
+        
 
-    return {"status": "Message sent", "response": response_data}
+
+        return {"status": "Message sent", "response": response_data}
+    except Exception as e:
+        db.rollback()  # Rollback in case of any error
+        print(f"Error storing message in conversation table: {e}")
+        raise HTTPException(status_code=500, detail="Error storing message in database")
+
+
 
 
 @router.post("/send-template-message/")
